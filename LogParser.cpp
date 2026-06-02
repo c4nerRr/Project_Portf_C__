@@ -7,14 +7,13 @@
 #include <fstream>
 #include <mutex>
 #include <thread>
-#include <string_view>
 #include <unordered_map>
 #include <chrono>
 #include <iostream>
+#include <algorithm>
 using namespace std;
 
-LogParser::LogParser() {
-}
+LogParser::LogParser() = default;
 
 
 LogParser::~LogParser() {
@@ -22,6 +21,7 @@ LogParser::~LogParser() {
 }
 
 void LogParser::from_main_to_main(const std::string &filePath) {
+        auto start = std::chrono::high_resolution_clock::now();
         std::vector<thread> threads;
 
         threads.emplace_back(&LogParser::Reader, this, filePath);
@@ -31,14 +31,27 @@ void LogParser::from_main_to_main(const std::string &filePath) {
             threads.emplace_back (&LogParser::Consumer_log, this); //&ИмяКласса::ИмяМетода, + указатель на сам объект (this)
             cout << "DEBUG: start Consumer threads" << endl;
         }
-
-        for (int i = 0; i < threads.size(); i++)
+        for (auto & thread : threads)
         {
-            threads[i].join();
+            thread.join();
         }
+    printResults();
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    cout << "Lead time(parsing): " << duration.count() << " microseconds" << endl;
 }
 
-void LogParser::printResults() {
+void LogParser::printResults() const {
+    vector<pair<string, size_t>> results;
+    for (const auto &item : error_) {
+        results.emplace_back(item);
+    }
+    ranges::sort(results, [](const pair<string, size_t> &a, const pair<string, size_t> &b) {
+                     return a.second > b.second;
+                 });
+    for (auto &[fst, snd] : results) {
+        cout << fst << " " << snd << endl;
+    }
 }
 
 
@@ -71,13 +84,13 @@ void LogParser::Consumer_log() {
 
         //.log struct: [дата время] УРОВЕНЬ: Сообщение
         //example: [2026-06-02 20:45:01] ERROR: Database connection timeout
-
-        size_t startPos = currLine.find("] ") + 2;
+        size_t startPos = currLine.find("] ");
         if (startPos == std::string::npos) {
             continue;
         }
-        size_t endPos = currLine.find(":", startPos);
-        if (startPos == std::string::npos) { //NOLINT
+        startPos += 2;
+        size_t endPos = currLine.find(':', startPos);
+        if (endPos == std::string::npos) { //NOLINT
             continue;
         }
         string errorLevel = currLine.substr(startPos, endPos - startPos); //23 index + : on 28 index, 28-23 = word length
