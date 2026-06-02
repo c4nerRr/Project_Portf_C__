@@ -3,7 +3,6 @@
 //
 
 #include "LogParser.h"
-#include "DataTypes.h"
 #include <fstream>
 #include <mutex>
 #include <thread>
@@ -11,23 +10,30 @@
 #include <chrono>
 #include <iostream>
 #include <algorithm>
+#include <string_view>
+
+
 using namespace std;
 
 LogParser::LogParser() = default;
 
 
-LogParser::~LogParser() {
-    Clear();
-}
+LogParser::~LogParser() = default;
 
-void LogParser::from_main_to_main(const std::string &filePath) {
+
+void LogParser::runParser(const std::string &filePath) {
         auto start = std::chrono::high_resolution_clock::now();
+
+        unsigned int numThreads = std::thread::hardware_concurrency();
+            if (numThreads == 0) {
+                numThreads = 4;
+            }
         std::vector<thread> threads;
 
         threads.emplace_back(&LogParser::Reader, this, filePath);
         cout << "DEBUG: start Reader threads" << endl;
 
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < numThreads; i++) {
             threads.emplace_back (&LogParser::Consumer_log, this); //&ИмяКласса::ИмяМетода, + указатель на сам объект (this)
             cout << "DEBUG: start Consumer threads" << endl;
         }
@@ -61,45 +67,55 @@ void LogParser::Reader(const std::string &filePath) {
         cerr << "Unable to open file " << filePath << endl;
         exit(1);
     }
-
+    cout << "DEBUG: File is open. " << endl;
     string line;
     while (getline(file, line)) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        lines_.push_back(line);
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            lines_.push(std::move(line));
+        }
+        cv_.notify_one();
     }
-    isDone_ = true;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        isDone_ = true;
+    }
+    cv_.notify_all();
 }
 
 void LogParser::Consumer_log() {
-    do {
-        string currLine;
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            if (lines_.empty()) {
+    try {
+        while (true) {
+            string currLine;
+            {
+                std::unique_lock<std::mutex> lock(mutex_);
+                cv_.wait(lock, [this]() {return !lines_.empty() || isDone_; }); //wait until queue == empty OR Rider isDone = true
+                if (lines_.empty() && isDone_) {
+                    return;
+                }
+                currLine = std::move(lines_.front());
+                lines_.pop();
+                lock.unlock();
+            }; //mutex
+            //.log struct: [дата время] УРОВЕНЬ: Сообщение
+            //example: [2026-06-02 20:45:01] ERROR: Database connection timeout
+            size_t startPos = currLine.find("] ");
+            if (startPos == std::string::npos) {
                 continue;
             }
-            currLine = lines_.back();
-            lines_.pop_back();
-        }; //mutex
-
-        //.log struct: [дата время] УРОВЕНЬ: Сообщение
-        //example: [2026-06-02 20:45:01] ERROR: Database connection timeout
-        size_t startPos = currLine.find("] ");
-        if (startPos == std::string::npos) {
-            continue;
+            startPos += 2;
+            size_t endPos = currLine.find(':', startPos);
+            if (endPos == std::string::npos) { //NOLINT
+                continue;
+            }
+            string_view errorLevel = string_view(currLine).substr(startPos, endPos - startPos); //23 index + : on 28 index, 28-23 = word length
+            {
+                std::lock_guard<std::mutex> lock2(mapMutex_);
+                error_[static_cast<string>(errorLevel)]++;
+            };
         }
-        startPos += 2;
-        size_t endPos = currLine.find(':', startPos);
-        if (endPos == std::string::npos) { //NOLINT
-            continue;
-        }
-        string errorLevel = currLine.substr(startPos, endPos - startPos); //23 index + : on 28 index, 28-23 = word length
-        {
-            std::lock_guard<std::mutex> lock2(mutex_);
-            error_[errorLevel]++;
-        };
-    }while (!isDone_ || !lines_.empty());
+    }catch (const std::exception &e) {
+        cerr << e.what() << endl;
+    }
 }
 
-void LogParser::Clear() {
-}

@@ -8,20 +8,24 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <queue>
+#include <condition_variable>
 
 
 class LogParser {
     public:
     LogParser();
     ~LogParser();
-    void from_main_to_main(const std::string &filePath);
+    void runParser(const std::string &filePath);
     void printResults() const;
     private:
 
-    std::atomic<bool> isDone_ = false; //потоков много чтобы функции не дрались за флажки. атомарный флажок.
-    std::vector<std::string> lines_; //склад прочитаных строчек
-    std::unordered_map<std::string, std::size_t> error_; //ошибки, кол-во
-    std::mutex mutex_; //не даст потокам одновременно писать данные в очередь или хешку
+    std::atomic<bool> isDone_ = false;
+    std::queue<std::string> lines_;
+    std::unordered_map<std::string, std::size_t> error_;
+    std::mutex mutex_;
+    std::mutex mapMutex_;
+    std::condition_variable cv_;
 
     void Reader(const std::string& filePath);
 

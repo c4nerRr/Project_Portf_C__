@@ -7,4 +7,6 @@ add_executable(Project_Portf_C__ main.cpp
         LogParser.cpp
         LogParser.h
         DataTypes.h
-      )
+)
+
+add_executable(Gener_test generator.cpp)

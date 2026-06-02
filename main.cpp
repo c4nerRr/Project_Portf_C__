@@ -4,6 +4,6 @@
 
 int main() {
     LogParser logParser;
-    logParser.from_main_to_main("../test.log");
+    logParser.runParser("../test.log");
     return 0;
 }
