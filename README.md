@@ -32,7 +32,7 @@ Process finished with exit code 0
 ```
 )  
 
-## Технические решения (Под капотом) ->
+## Технічні рішення ->
 
 * **Архітектура Producer-Consumer:** [ - ]
 
