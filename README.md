@@ -8,7 +8,29 @@
 ## Бенчмарки і продуктивність ->
 Програма здатна обробити лог-файл розміром **~600 МБ (10 000 000 рядків)** трохи більше, ніж за **1 секунду**!
 
-![Результат парсингу у режимі Release]( - )  
+![Результат парсингу у режимі Release](
+```Plaintext
+DEBUG: File is open.
+
+DEBUG: start Consumer threads
+DEBUG: start Consumer threads
+DEBUG: start Consumer threads
+DEBUG: start Consumer threads
+DEBUG: start Consumer threads
+DEBUG: start Consumer threads
+DEBUG: start Consumer threads
+DEBUG: start Consumer threads
+DEBUG: start Consumer threads
+DEBUG: start Consumer threads
+ERROR 2500129
+WARNING 2499994
+INFO 2499964
+FATAL 2499913
+Lead time(parsing): 1288183 microseconds
+
+Process finished with exit code 0
+```
+)  
 
 ## Технические решения (Под капотом) ->
 
